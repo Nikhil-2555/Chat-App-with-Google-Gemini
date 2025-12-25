@@ -1,17 +1,17 @@
 import mongoose from 'mongoose';
 
 
-const projectSchema = new mongoose.Schema ({
-    name:{
+const projectSchema = new mongoose.Schema({
+    name: {
         type: String,
         required: true,
-        trim : true,
+        trim: true,
         lowercase: true,
-        unique: true,
+        unique: [true, 'name already exists']
     },
 
 
-    users:[
+    users: [
         {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'user'
@@ -19,6 +19,6 @@ const projectSchema = new mongoose.Schema ({
     ]
 })
 
-const Project =mongoose.model('project',projectSchema)
+const Project = mongoose.model('project', projectSchema)
 
 export default Project;

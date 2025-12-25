@@ -1,15 +1,11 @@
 {
-<<<<<<< HEAD
-  "dependencies": {
-    "cors": "^2.8.5",
-    "ioredis": "^5.8.2"
-=======
   "name": "backend",
   "version": "1.0.0",
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
   "keywords": [],
   "author": "",
@@ -22,9 +18,9 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "express-validator": "^7.3.1",
+    "ioredis": "^5.8.2",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.0.2",
     "morgan": "^1.10.1"
->>>>>>> 3c1c847 (feat: Implement initial backend setup including user authentication, JWT, Redis for token management, and basic API routes.)
   }
 }
