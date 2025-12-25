@@ -1,0 +1,43 @@
+<<<<<<< HEAD
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Environment variables
+.env
+*/.env
+
+# Build outputs
+dist/
+build/
+*/dist/
+*/build/
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Vite
+.vite/
+*/.vite/
+
+# Git folders (to avoid nested repos)
+backend/.git/
+frontend/.git/
+=======
+node_modules
+.env
+auth_debug.log
+.DS_Store
+>>>>>>> 3c1c847 (feat: Implement initial backend setup including user authentication, JWT, Redis for token management, and basic API routes.)
