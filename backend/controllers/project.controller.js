@@ -17,7 +17,10 @@ export const createProject = async (req, res) => {
 
         const newProject = await projectService.createProject({ name, userId });
 
-        res.status(201).json(newProject);
+        // Populate users so the frontend gets the full user objects immediately
+        const populatedProject = await newProject.populate('users');
+
+        res.status(201).json(populatedProject);
     } catch (err) {
         console.log(err);
         res.status(400).send(err.message);
@@ -68,4 +71,19 @@ export const addUserToProject = async (req, res) => {
     }
 
 
+}
+
+export const getProjectById = async (req, res) => {
+    const { projectId } = req.params;
+
+    try {
+        const project = await projectService.getProjectById({ projectId });
+
+        return res.status(200).json({
+            project
+        })
+    } catch (err) {
+        console.log(err)
+        res.status(400).json({ error: err.message })
+    }
 }

@@ -35,7 +35,7 @@ export const getAllProjectByUserId = async ({ userId }) => {
 
     const allUserProjects = await projectModel.find({
         users: userId
-    })
+    }).populate('users')
 
     return allUserProjects;
 }
@@ -89,4 +89,16 @@ export const addUsersToProject = async ({ projectId, users, userId }) => {
 
 
 
+}
+
+export const getProjectById = async ({ projectId }) => {
+    if (!projectId) {
+        throw new Error("projectId is required")
+    }
+
+    const project = await projectModel.findOne({
+        _id: projectId
+    }).populate('users')
+
+    return project;
 }
