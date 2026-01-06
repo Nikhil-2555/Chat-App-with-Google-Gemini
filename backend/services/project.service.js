@@ -41,7 +41,7 @@ export const getAllProjectByUserId = async ({ userId }) => {
 }
 
 export const addUsersToProject = async ({ projectId, users, userId }) => {
-    a
+
     if (!projectId) {
         throw new Error("projectId is required")
     }
@@ -95,6 +95,11 @@ export const getProjectById = async ({ projectId }) => {
     if (!projectId) {
         throw new Error("projectId is required")
     }
+
+    if (!mongoose.Types.ObjectId.isValid(projectId)) {
+        throw new Error("Invalid projectId")
+    }
+
 
     const project = await projectModel.findOne({
         _id: projectId

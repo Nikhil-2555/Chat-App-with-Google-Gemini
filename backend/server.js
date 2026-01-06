@@ -3,6 +3,8 @@ import { Server } from 'socket.io';
 import http from 'http';
 import app from './app.js';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
+import projectModel from './models/project.model.js';
 
 const port = process.env.PORT || 3000;
 
@@ -18,10 +20,11 @@ const io = new Server(server, {
 });
 
 // Socket.IO Authentication Middleware
-io.use((socket, next) => {
+io.use(async (socket, next) => {
     try {
         const token = socket.handshake.auth?.token ||
             socket.handshake.headers?.authorization?.split(' ')[1];
+
 
         if (!token) {
             return next(new Error('Authentication error: No token provided'));
@@ -46,6 +49,9 @@ const activeUsers = new Map();
 io.on('connection', (socket) => {
     console.log(`✅ User connected: ${socket.user.email || socket.user._id}`);
 
+
+
+
     // Store user's socket connection
     activeUsers.set(socket.user._id, socket.id);
 
@@ -54,6 +60,9 @@ io.on('connection', (socket) => {
 
     // Join a project room
     socket.on('join-project', (projectId) => {
+        if (!mongoose.Types.ObjectId.isValid(projectId)) {
+            return socket.emit('error', { message: 'Invalid Project ID' });
+        }
         socket.join(projectId);
         console.log(`👥 User ${socket.user.email} joined project: ${projectId}`);
 
@@ -81,6 +90,10 @@ io.on('connection', (socket) => {
     socket.on('project-message', (data) => {
         const { projectId, message } = data;
 
+        if (!mongoose.Types.ObjectId.isValid(projectId)) {
+            return socket.emit('error', { message: 'Invalid Project ID' });
+        }
+
         // Broadcast message to all users in the project room
         io.to(projectId).emit('project-message', {
             message,
@@ -99,6 +112,10 @@ io.on('connection', (socket) => {
     socket.on('typing', (data) => {
         const { projectId, isTyping } = data;
 
+        if (!mongoose.Types.ObjectId.isValid(projectId)) {
+            return socket.emit('error', { message: 'Invalid Project ID' });
+        }
+
         socket.to(projectId).emit('user-typing', {
             userId: socket.user._id,
             email: socket.user.email,
@@ -110,6 +127,10 @@ io.on('connection', (socket) => {
     // Handle AI message requests
     socket.on('ai-message', (data) => {
         const { projectId, message } = data;
+
+        if (!mongoose.Types.ObjectId.isValid(projectId)) {
+            return socket.emit('error', { message: 'Invalid Project ID' });
+        }
 
         // Emit to the specific project room
         io.to(projectId).emit('ai-message', {
