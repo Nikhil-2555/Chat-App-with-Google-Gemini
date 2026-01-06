@@ -89,6 +89,7 @@ export const UserProvider = ({ children }) => {
             return { success: true, user };
         } catch (error) {
             console.error('Registration error:', error);
+            console.log('Error response:', error.response?.data);
             return {
                 success: false,
                 error: error.response?.data?.errors?.[0]?.msg || 'Registration failed'

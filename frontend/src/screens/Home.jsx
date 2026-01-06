@@ -20,15 +20,16 @@ const Home = () => {
 
     function createProject(e) {
         e.preventDefault()
+        console.log('Creating project:', projectName);
         projectService.createProject(projectName)
             .then((res) => {
-                console.log(res)
+                console.log('Project created:', res)
                 setProjects([...projects, res])
                 setIsModalOpen(false)
                 setProjectName('')
             })
             .catch((err) => {
-                console.log(err)
+                console.error('Error creating project:', err)
             })
     }
 
