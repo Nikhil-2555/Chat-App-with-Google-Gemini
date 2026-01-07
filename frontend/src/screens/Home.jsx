@@ -43,6 +43,16 @@ const Home = () => {
                     <i className="ri-link text-2xl font-semibold"></i>
                 </button>
 
+                <button
+                    onClick={() => {
+                        localStorage.removeItem('token');
+                        navigate('/login');
+                    }}
+                    className="project border-2 border-red-300 text-red-500 rounded-md p-4 min-w-52 flex items-center justify-center gap-2 hover:bg-red-50 transition-all">
+                    <span className='text-2xl font-semibold'>Logout</span>
+                    <i className="ri-logout-box-r-line text-2xl font-semibold"></i>
+                </button>
+
                 {
                     projects.map((project) => (
                         <div key={project._id}

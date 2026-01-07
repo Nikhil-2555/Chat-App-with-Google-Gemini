@@ -5,6 +5,7 @@ import app from './app.js';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import projectModel from './models/project.model.js';
+import userModel from './models/user.model.js';
 
 const port = process.env.PORT || 3000;
 
@@ -36,7 +37,13 @@ io.use(async (socket, next) => {
             return next(new Error('Authentication error: Invalid token'));
         }
 
-        socket.user = decoded;
+        const user = await userModel.findOne({ email: decoded.email });
+
+        if (!user) {
+            return next(new Error('Authentication error: User not found'));
+        }
+
+        socket.user = user;
         next();
     } catch (error) {
         next(new Error('Authentication error: ' + error.message));
@@ -99,7 +106,8 @@ io.on('connection', (socket) => {
             message,
             sender: {
                 _id: socket.user._id,
-                email: socket.user.email
+                email: socket.user.email,
+                username: socket.user.username // Send username
             },
             projectId,
             timestamp: new Date()

@@ -5,6 +5,7 @@ import { useParams, useLocation } from 'react-router-dom'
 import * as projectService from '../services/project.service'
 import * as userService from '../services/user.service'
 import { UserContext } from '../context/user.context'
+import { initializeSocket, receiveMessage, sendMessage } from '../config/socket'
 
 const Project = () => {
     const { projectId } = useParams()
@@ -16,6 +17,10 @@ const Project = () => {
     const [users, setUsers] = useState([])
     const [selectedUsers, setSelectedUsers] = useState(new Set())
     const [selectedChatUser, setSelectedChatUser] = useState(null)
+    const { user } = useContext(UserContext)
+    const [message, setMessage] = useState('')
+    const [messages, setMessages] = useState([])
+    const messageBox = React.useRef(null)
 
     useEffect(() => {
         // Only fetch project if projectId is provided
@@ -53,6 +58,46 @@ const Project = () => {
             setUsers(mockUsers)
         })
     }, [projectId])
+
+    useEffect(() => {
+        if (!projectId) return
+
+        const socket = initializeSocket(projectId)
+
+        sendMessage('join-project', projectId)
+
+        const handleMessage = (data) => {
+            console.log("Received message:", data)
+            setMessages(prev => [...prev, data])
+        }
+
+        receiveMessage('project-message', handleMessage)
+
+        // Cleanup function to remove listeners when component unmounts or projectId changes
+        return () => {
+            if (socket) {
+                socket.off('project-message', handleMessage)
+                sendMessage('leave-project', projectId)
+            }
+        }
+    }, [projectId])
+
+    const send = () => {
+        if (!message) return
+
+        sendMessage('project-message', {
+            message,
+            projectId
+        })
+        setMessage('')
+    }
+
+    useEffect(() => {
+        if (messageBox.current) {
+            messageBox.current.scrollTop = messageBox.current.scrollHeight
+        }
+    }, [messages])
+
 
     const handleUserClick = (userId) => {
         setSelectedUsers((prevSelectedUsers) => {
@@ -151,7 +196,7 @@ const Project = () => {
                         {selectedChatUser && (
                             <div className='bg-white px-4 py-2 rounded-full shadow-md'>
                                 <p className='text-sm font-bold text-slate-800'>
-                                    {users.find(u => u._id === selectedChatUser)?.email || 'User'}
+                                    {users.find(u => u._id === selectedChatUser)?.username || users.find(u => u._id === selectedChatUser)?.email || 'User'}
                                 </p>
                             </div>
                         )}
@@ -165,39 +210,16 @@ const Project = () => {
                     </div>
 
                     {/* Messages Area */}
-                    <div className='flex-1 px-4 pb-4 overflow-y-auto'>
+                    <div className='flex-1 px-4 pb-4 overflow-y-auto' ref={messageBox}>
                         <div className='space-y-3'>
-                            {/* Sample Message - Left (Other User) */}
-                            <div className='flex flex-col items-start'>
-                                <div className='bg-white rounded-2xl rounded-tl-sm shadow-sm p-3 max-w-[85%]'>
-                                    <p className='text-xs text-slate-500 mb-1'>example@gmail.com</p>
-                                    <p className='text-sm text-slate-800'>Lorem ipsum dolor sit amet.</p>
-                                    <p className='text-sm text-slate-800'>Lorem ipsum dolor sit amet.</p>
+                            {messages.map((msg, index) => (
+                                <div key={index} className={`flex flex-col ${msg.sender._id === user?._id ? 'items-end' : 'items-start'}`}>
+                                    <div className={`rounded-2xl shadow-sm p-3 max-w-[85%] ${msg.sender._id === user?._id ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white text-slate-800 rounded-tl-sm'}`}>
+                                        <p className={`text-xs mb-1 ${msg.sender._id === user?._id ? 'text-blue-200' : 'text-slate-500'}`}>{msg.sender.username || msg.sender.email}</p>
+                                        <p className='text-sm'>{msg.message}</p>
+                                    </div>
                                 </div>
-                            </div>
-
-                            {/* Sample Message - Right (Current User) */}
-                            <div className='flex flex-col items-end'>
-                                <div className='bg-white rounded-2xl rounded-tr-sm shadow-sm p-3 max-w-[85%]'>
-                                    <p className='text-xs text-slate-500 mb-1'>example@gmail.com</p>
-                                    <p className='text-sm text-slate-800'>Lorem ipsum dolor sit amet.</p>
-                                </div>
-                            </div>
-
-                            {/* Add more sample messages to demonstrate the UI */}
-                            <div className='flex flex-col items-start'>
-                                <div className='bg-white rounded-2xl rounded-tl-sm shadow-sm p-3 max-w-[85%]'>
-                                    <p className='text-xs text-slate-500 mb-1'>example@gmail.com</p>
-                                    <p className='text-sm text-slate-800'>Lorem ipsum dolor sit amet.</p>
-                                </div>
-                            </div>
-
-                            <div className='flex flex-col items-end'>
-                                <div className='bg-white rounded-2xl rounded-tr-sm shadow-sm p-3 max-w-[85%]'>
-                                    <p className='text-xs text-slate-500 mb-1'>example@gmail.com</p>
-                                    <p className='text-sm text-slate-800'>Lorem ipsum dolor sit amet.</p>
-                                </div>
-                            </div>
+                            ))}
                         </div>
                     </div>
 
@@ -206,12 +228,21 @@ const Project = () => {
                         <div className='flex gap-2 items-center'>
                             <div className='flex-1 relative'>
                                 <input
+                                    value={message}
+                                    onChange={(e) => setMessage(e.target.value)}
                                     type="text"
                                     placeholder='Enter message'
                                     className='w-full py-2.5 px-3 bg-white border-none rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 transition-all text-sm text-slate-800 placeholder:text-slate-400'
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            send()
+                                        }
+                                    }}
                                 />
                             </div>
-                            <button className='bg-slate-700 text-white p-2.5 rounded-lg hover:bg-slate-800 transition-all active:scale-95'>
+                            <button
+                                onClick={send}
+                                className='bg-slate-700 text-white p-2.5 rounded-lg hover:bg-slate-800 transition-all active:scale-95'>
                                 <i className="ri-send-plane-fill text-lg"></i>
                             </button>
                         </div>
@@ -249,7 +280,7 @@ const Project = () => {
                                         {user?.email?.substring(0, 1).toUpperCase()}
                                     </div>
                                     <div className='flex-1 min-w-0'>
-                                        <p className='text-sm font-bold text-slate-800 truncate'>{user?.email}</p>
+                                        <p className='text-sm font-bold text-slate-800 truncate'>{user?.username || user?.email}</p>
                                         <p className='text-xs text-slate-500 truncate'>Member</p>
                                     </div>
                                     <div className='h-2 w-2 bg-emerald-500 rounded-full border-2 border-white shadow-[0_0_0_2px_#fff]'></div>
@@ -288,7 +319,7 @@ const Project = () => {
                                         {user.email.substring(0, 1).toUpperCase()}
                                     </div>
                                     <div className='flex-1 min-w-0'>
-                                        <p className='text-sm font-bold text-slate-800 truncate'>{user.email}</p>
+                                        <p className='text-sm font-bold text-slate-800 truncate'>{user.username || user.email}</p>
                                     </div>
                                     {selectedUsers.has(user._id) && (
                                         <i className="ri-check-line text-blue-600 text-xl"></i>
@@ -365,7 +396,7 @@ const Project = () => {
                                         {/* User Info */}
                                         <div className='flex-1 min-w-0'>
                                             <p className='text-base font-bold text-slate-800 truncate'>
-                                                {user.email}
+                                                {user.username || user.email}
                                             </p>
                                             <p className='text-xs text-slate-500 truncate'>
                                                 {selectedChatUser === user._id ? 'Selected' : 'Click to select'}
