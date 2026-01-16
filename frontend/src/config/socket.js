@@ -1,11 +1,11 @@
-import socket from 'socket.io-client';
+import { io } from 'socket.io-client';
 
 let socketInstance = null;
 
 export const initializeSocket = (projectId) => {
 
 
-    socketInstance = socket(import.meta.env.VITE_API_URL || 'http://localhost:3000', {
+    socketInstance = io(import.meta.env.VITE_API_URL || 'http://localhost:3000', {
         auth: {
             token: localStorage.getItem('token')
         },

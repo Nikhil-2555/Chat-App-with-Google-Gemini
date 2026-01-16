@@ -18,9 +18,10 @@ export const createUserController = async (req, res) => {
 
         const token = await user.generateJWT();
 
-        delete user._doc.password;
+        const userObj = user.toObject();
+        delete userObj.password;
 
-        res.status(201).json({ user, token });
+        res.status(201).json({ user: userObj, token });
     } catch (error) {
         console.log(error);
         res.status(400).json({ errors: [{ msg: error.message }] });
@@ -52,18 +53,20 @@ export const loginController = async (req, res) => {
 
         if (!isMatch) {
             return res.status(401).json({
-                errors: 'invalid credentials'
+                error: 'invalid credentials'
             })
         }
 
         const token = await user.generateJWT();
 
-        res.status(200).json({ user, token });
+        const userObj = user.toObject();
+        delete userObj.password;
+
+        res.status(200).json({ user: userObj, token });
 
 
     } catch (err) {
-        res.status(400).send(err.message);
-
+        res.status(400).json({ error: err.message });
     }
 
 
@@ -90,8 +93,7 @@ export const logoutController = async (req, res) => {
 
     } catch (err) {
         console.log(err);
-        res.status(400).send(err.message);
-
+        res.status(400).json({ error: err.message });
     }
 }
 

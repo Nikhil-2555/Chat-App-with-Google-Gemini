@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import projectModel from './models/project.model.js';
 import userModel from './models/user.model.js';
+import * as aiService from './services/ai.service.js';
 
 const port = process.env.PORT || 3000;
 
@@ -94,12 +95,14 @@ io.on('connection', (socket) => {
     });
 
     // Handle project messages
-    socket.on('project-message', (data) => {
+    socket.on('project-message', async (data) => {
         const { projectId, message } = data;
 
         if (!mongoose.Types.ObjectId.isValid(projectId)) {
             return socket.emit('error', { message: 'Invalid Project ID' });
         }
+
+        const isAiMessage = message.trim().toLowerCase().startsWith('@ai');
 
         // Broadcast message to all users in the project room
         io.to(projectId).emit('project-message', {
@@ -112,6 +115,31 @@ io.on('connection', (socket) => {
             projectId,
             timestamp: new Date()
         });
+
+        if (isAiMessage) {
+            console.log("🤖 AI Message detected:", message);
+            try {
+                const prompt = message.replace(/@ai/i, '').trim();
+                console.log("🤖 Prompt extracted:", prompt);
+                const aiResponse = await aiService.generateResult(prompt);
+                console.log("🤖 AI Response generated, broadcasting...");
+
+                // Broadcast AI response to the project room
+                io.to(projectId).emit('ai-message', {
+                    message: aiResponse,
+                    sender: {
+                        _id: 'ai',
+                        email: 'ai@system.com',
+                        username: 'AI Assistant'
+                    },
+                    projectId,
+                    timestamp: new Date()
+                });
+            } catch (error) {
+                console.error('❌ AI service error:', error.message);
+                socket.emit('error', { message: 'AI Assistant failed to respond: ' + error.message });
+            }
+        }
 
         console.log(`💬 Message in project ${projectId} from ${socket.user.email}`);
     });

@@ -67,16 +67,29 @@ const Project = () => {
         sendMessage('join-project', projectId)
 
         const handleMessage = (data) => {
-            console.log("Received message:", data)
-            setMessages(prev => [...prev, data])
+            console.log("📩 Received message:", data)
+            setMessages(prev => {
+                // Prevent duplicate messages if any (simple check by timestamp or content if needed, 
+                // but for now just appending is standard. We can add a unique ID check if needed later)
+                return [...prev, data]
+            })
         }
 
         receiveMessage('project-message', handleMessage)
+        receiveMessage('ai-message', handleMessage)
+
+        // Listen for error messages from the server
+        receiveMessage('error', (data) => {
+            console.error("Socket error:", data)
+            alert(data.message || "An error occurred")
+        })
 
         // Cleanup function to remove listeners when component unmounts or projectId changes
         return () => {
             if (socket) {
                 socket.off('project-message', handleMessage)
+                socket.off('ai-message', handleMessage)
+                socket.off('error')
                 sendMessage('leave-project', projectId)
             }
         }
@@ -212,17 +225,38 @@ const Project = () => {
                     {/* Messages Area */}
                     <div className='flex-1 px-4 pb-4 overflow-y-auto' ref={messageBox}>
                         <div className='space-y-3'>
-                            {messages.map((msg, index) => (
-                                <div key={index} className={`flex flex-col ${msg.sender._id === user?._id ? 'items-end' : 'items-start'}`}>
-                                    <div className={`rounded-2xl shadow-sm p-3 max-w-[85%] ${msg.sender._id === user?._id ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white text-slate-800 rounded-tl-sm'}`}>
-                                        <p className={`text-xs mb-1 ${msg.sender._id === user?._id ? 'text-blue-200' : 'text-slate-500'}`}>{msg.sender.username || msg.sender.email}</p>
-                                        <p className='text-sm'>{msg.message}</p>
+                            {messages.map((msg, index) => {
+                                const senderId = msg.sender?._id;
+                                const currentUserId = user?._id;
+                                const isOwnMessage = senderId && currentUserId && senderId === currentUserId;
+                                const isAi = msg.sender?._id === 'ai';
+
+                                return (
+                                    <div key={index} className={`flex flex-col ${isOwnMessage ? 'items-end' : 'items-start'} animate-fadeIn mb-2`}>
+                                        <div className={`rounded-xl shadow-sm p-3 max-w-[85%] border 
+                                            ${isOwnMessage
+                                                ? 'bg-blue-600 text-white rounded-tr-sm border-blue-600'
+                                                : isAi
+                                                    ? 'bg-gradient-to-br from-indigo-50 to-purple-50 text-slate-800 rounded-tl-sm border-indigo-100'
+                                                    : 'bg-white text-slate-800 rounded-tl-sm border-slate-200'
+                                            }`}>
+                                            {!isOwnMessage && (
+                                                <p className={`text-xs mb-1 font-semibold ${isAi ? 'text-indigo-600' : 'text-slate-500'}`}>
+                                                    {msg.sender?.username || msg.sender?.email || 'Unknown'}
+                                                </p>
+                                            )}
+                                            <div className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${isAi ? 'markdown-content' : ''}`}>
+                                                {msg.message}
+                                            </div>
+                                        </div>
+                                        <div className='text-[10px] text-slate-400 mt-1 px-1'>
+                                            {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     </div>
-                    //hello world
 
                     {/* Input Area */}
                     <div className='px-4 pb-4'>
@@ -455,3 +489,4 @@ const Project = () => {
 }
 
 export default Project
+//how are you
