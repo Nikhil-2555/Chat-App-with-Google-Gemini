@@ -13,7 +13,7 @@ const Project = () => {
     const [project, setProject] = useState(location.state?.project || null)
     const [isSidePanelOpen, setIsSidePanelOpen] = useState(false)
     const [isModalOpen, setIsModalOpen] = useState(false)
-    const [isChatUserModalOpen, setIsChatUserModalOpen] = useState(false)
+    const [isMembersModalOpen, setIsMembersModalOpen] = useState(false)
     const [users, setUsers] = useState([])
     const [selectedUsers, setSelectedUsers] = useState(new Set())
     const [selectedChatUser, setSelectedChatUser] = useState(null)
@@ -21,6 +21,21 @@ const Project = () => {
     const [message, setMessage] = useState('')
     const [messages, setMessages] = useState([])
     const messageBox = React.useRef(null)
+
+    const [currentFile, setCurrentFile] = useState(null)
+    const [openFiles, setOpenFiles] = useState([])
+
+    const [fileTree, setFileTree] = useState({
+        "app.js": {
+            content: `import React from 'react';\n\nfunction App() {\n  return (\n    <div>Hello World</div>\n  );\n}`
+        },
+        "package.json": {
+            content: `{\n  "name": "my-project",\n  "version": "1.0.0"\n}`
+        },
+        "style.css": {
+            content: `body {\n  background: #f0f0f0;\n}`
+        }
+    })
 
     useEffect(() => {
         // Only fetch project if projectId is provided
@@ -68,6 +83,30 @@ const Project = () => {
 
         const handleMessage = (data) => {
             console.log("📩 Received message:", data)
+
+            // Check if message contains fileTree (Janky AI File Generation Check)
+            try {
+                // We attempt to find a JSON block if the message isn't pure JSON
+                // But for now, let's assume the AI returns a JSON string if we tell it to.
+                // Or we can check if data.message is an object (if connection layer parsed it, but usually it's string in socket.emit unless sent as obj)
+                // Actually socket.io handles objects. 
+
+                // If the message is a STRING that looks like JSON
+                const cleanMessage = typeof data.message === 'string' ? data.message : '';
+
+                if (cleanMessage.trim().startsWith('{') && cleanMessage.trim().endsWith('}')) {
+                    const parsed = JSON.parse(cleanMessage);
+                    if (parsed.fileTree) {
+                        setFileTree(prev => ({ ...prev, ...parsed.fileTree }));
+                        data.message = parsed.text || "Updated project files.";
+                        // Optionally open these files?
+                    }
+                }
+            } catch (e) {
+                // Not JSON, ignore
+                console.log("Message is not a system command")
+            }
+
             setMessages(prev => {
                 // Prevent duplicate messages if any (simple check by timestamp or content if needed, 
                 // but for now just appending is standard. We can add a unique ID check if needed later)
@@ -163,7 +202,7 @@ const Project = () => {
     }
 
     return (
-        <main className='h-screen w-screen flex flex-col bg-slate-50'>
+        <main className='h-dvh w-screen flex flex-col bg-slate-50'>
             {/* Header */}
             <header className='flex justify-between items-center p-4 px-6 bg-white border-b border-slate-200 shadow-sm'>
                 <div className='flex items-center gap-4'>
@@ -184,11 +223,9 @@ const Project = () => {
                 </div>
 
                 <div className='flex items-center gap-3'>
-                    <button
-                        onClick={() => setIsSidePanelOpen(!isSidePanelOpen)}
-                        className='p-2.5 hover:bg-slate-100 rounded-xl transition-all text-slate-600 active:scale-95'>
-                        <i className="ri-group-line text-xl"></i>
-                    </button>
+                    <div className='bg-blue-600 text-white p-2.5 rounded-xl shadow-lg shadow-blue-100'>
+                        <i className="ri-folder-line text-xl"></i>
+                    </div>
                     <button className='p-2.5 hover:bg-slate-100 rounded-xl transition-all text-slate-600 active:scale-95'>
                         <i className="ri-settings-3-line text-xl"></i>
                     </button>
@@ -196,31 +233,28 @@ const Project = () => {
             </header>
 
             {/* Main Content Area - Split Layout */}
-            <div className='flex-1 flex overflow-hidden'>
-                {/* Left Side - Chat Interface (40%) */}
-                <section className='w-[40%] flex flex-col relative border-r border-slate-300' style={{ backgroundColor: '#d4dae3' }}>
+            <div className='flex-1 flex overflow-hidden min-h-0'>
+                {/* Left Side - Chat Interface (25%) */}
+                <section className='w-[25%] flex flex-col relative border-r border-slate-300' style={{ backgroundColor: '#d4dae3' }}>
                     {/* Chat Header with User Icon */}
-                    <div
-                        onClick={() => setIsChatUserModalOpen(true)}
-                        className='flex justify-center items-center gap-3 py-4 bg-transparent cursor-pointer hover:bg-white/20 transition-all group'>
-                        <div className='bg-white p-3 rounded-full shadow-md group-hover:shadow-lg transition-all'>
-                            <i className="ri-group-fill text-2xl text-slate-800"></i>
+                    {/* Chat Header */}
+                    <header className='flex justify-between items-center p-3 px-4 border-b border-slate-200 bg-white/60 backdrop-blur-sm sticky top-0 z-10'>
+                        <div className='flex items-center gap-3'>
+                            <div className='h-10 w-10 bg-slate-200 rounded-full flex items-center justify-center'>
+                                <i className="ri-group-fill text-slate-500 text-lg"></i>
+                            </div>
+                            <div>
+                                <h3 className='font-bold text-slate-800 text-sm'>Team Chat</h3>
+                                <p className='text-xs text-slate-500'>{project?.users?.length || 0} members</p>
+                            </div>
                         </div>
-                        {selectedChatUser && (
-                            <div className='bg-white px-4 py-2 rounded-full shadow-md'>
-                                <p className='text-sm font-bold text-slate-800'>
-                                    {users.find(u => u._id === selectedChatUser)?.username || users.find(u => u._id === selectedChatUser)?.email || 'User'}
-                                </p>
-                            </div>
-                        )}
-                        {!selectedChatUser && (
-                            <div className='bg-white px-4 py-2 rounded-full shadow-md'>
-                                <p className='text-sm font-medium text-slate-500'>
-                                    Click to select user
-                                </p>
-                            </div>
-                        )}
-                    </div>
+                        <button
+                            onClick={() => setIsMembersModalOpen(true)}
+                            className='p-2 bg-slate-100 rounded-full text-slate-600 hover:bg-slate-200 transition-all active:scale-95'
+                            title="View Members">
+                            <i className="ri-more-2-fill"></i>
+                        </button>
+                    </header>
 
                     {/* Messages Area */}
                     <div className='flex-1 px-4 pb-4 overflow-y-auto' ref={messageBox}>
@@ -284,53 +318,105 @@ const Project = () => {
                     </div>
                 </section>
 
-                {/* Right Side - Content Area (60%) */}
-                <section className='w-[60%] flex flex-col bg-white relative'>
-                    {/* Placeholder for Code Editor / File Viewer */}
-                    <div className='flex-1 flex items-center justify-center bg-slate-50'>
-                        <div className='text-center text-slate-400'>
-                            <div className='bg-white p-8 rounded-full shadow-sm mb-4 inline-block'>
-                                <i className="ri-code-box-line text-5xl text-slate-300"></i>
-                            </div>
-                            <p className='text-lg font-medium'>Code Editor / File Viewer</p>
-                            <p className='text-sm'>This area will contain your project files and editor</p>
+                {/* Right Side - Content Area (75%) */}
+                {/* Right Side - Code Editor Area (75%) */}
+                {/* Right Side - Code Editor Area (75%) */}
+                <section className='flex-1 flex bg-slate-50 relative'>
+                    {/* File Explorer (20% of right side) */}
+                    <div className='w-64 bg-slate-50 border-r border-slate-200 flex flex-col h-full'>
+                        <header className='p-4 border-b border-slate-200 flex justify-between items-center px-4 py-2'>
+                            <h2 className='text-sm font-semibold text-slate-700 uppercase tracking-wider'>Files</h2>
+                            <button className='text-slate-500 hover:text-slate-800 transition-colors'>
+                                <i className="ri-add-line text-lg"></i>
+                            </button>
+                        </header>
+
+                        <div className='flex-1 overflow-y-auto p-2'>
+                            {Object.keys(fileTree).map((file) => (
+                                <button
+                                    key={file}
+                                    onClick={() => {
+                                        if (!openFiles.includes(file)) {
+                                            setOpenFiles([...openFiles, file])
+                                        }
+                                        setCurrentFile(file)
+                                    }}
+                                    className={`
+                                        w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all text-sm mb-1
+                                        ${currentFile === file ? 'bg-blue-100 text-blue-600 font-medium' : 'text-slate-600 hover:bg-slate-200'}
+                                    `}
+                                >
+                                    <i className={`ri-file-code-line text-lg ${currentFile === file ? 'text-blue-500' : 'text-slate-400'}`}></i>
+                                    <span className='truncate'>{file}</span>
+                                </button>
+                            ))}
                         </div>
+                    </div>
+
+                    {/* Code Editor Area */}
+                    <div className='flex-1 flex flex-col bg-white overflow-hidden'>
+                        {/* Tabs Bar */}
+                        {openFiles.length > 0 && (
+                            <div className='flex items-center bg-slate-100 border-b border-slate-200 overflow-x-auto custom-scrollbar h-10'>
+                                {openFiles.map(file => (
+                                    <div
+                                        key={file}
+                                        onClick={() => setCurrentFile(file)}
+                                        className={`
+                                            group flex items-center gap-2 px-3 h-full min-w-[100px] max-w-[200px] text-sm border-r border-slate-200 cursor-pointer select-none
+                                            ${currentFile === file ? 'bg-white text-slate-800 font-medium md:border-t-2 md:border-t-blue-500' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}
+                                        `}
+                                    >
+                                        <span className='truncate flex-1'>{file}</span>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const newOpenFiles = openFiles.filter(f => f !== file);
+                                                setOpenFiles(newOpenFiles);
+                                                if (currentFile === file) {
+                                                    setCurrentFile(newOpenFiles.length > 0 ? newOpenFiles[newOpenFiles.length - 1] : null);
+                                                }
+                                            }}
+                                            className={`p-0.5 rounded-md opacity-0 group-hover:opacity-100 transition-all ${currentFile === file ? 'text-slate-400 hover:text-red-500 hover:bg-red-50' : 'text-slate-400 hover:text-slate-700'}`}
+                                        >
+                                            <i className="ri-close-line"></i>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Editor Content */}
+                        {currentFile ? (
+                            <div className='flex-1 relative'>
+                                <textarea
+                                    value={fileTree[currentFile]?.content || ''}
+                                    onChange={(e) => {
+                                        setFileTree({
+                                            ...fileTree,
+                                            [currentFile]: {
+                                                ...fileTree[currentFile],
+                                                content: e.target.value
+                                            }
+                                        })
+                                    }}
+                                    className='w-full h-full p-4 font-mono text-sm text-slate-800 focus:outline-none resize-none leading-relaxed'
+                                    spellCheck="false"
+                                />
+                            </div>
+                        ) : (
+                            <div className='flex-1 flex items-center justify-center bg-slate-50'>
+                                <div className='text-center text-slate-400'>
+                                    <i className="ri-code-s-slash-line text-6xl mb-4 opacity-50 block"></i>
+                                    <p className='text-lg font-medium'>Select a file to view</p>
+                                    <p className='text-xs mt-2'>Or assume the AI created some files for you!</p>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </section>
 
-                {/* Side Panel (Members) - Overlays on top */}
-                <aside className={`absolute right-0 top-0 bottom-0 w-80 bg-white border-l border-slate-200 shadow-xl transition-all duration-300 z-10 ${isSidePanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-                    <div className='p-6 h-full flex flex-col'>
-                        <div className='flex justify-between items-center mb-6'>
-                            <h2 className='text-lg font-bold text-slate-900'>Team Members</h2>
-                            <button onClick={() => setIsSidePanelOpen(false)} className='text-slate-400 hover:text-slate-900'>
-                                <i className="ri-close-line text-xl"></i>
-                            </button>
-                        </div>
 
-                        <div className='space-y-4 overflow-y-auto flex-1'>
-                            {project?.users?.map((user, index) => (
-                                <div key={index} className='flex items-center gap-3 p-3 hover:bg-slate-50 rounded-xl transition-all cursor-pointer group'>
-                                    <div className='h-10 w-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-md'>
-                                        {user?.email?.substring(0, 1).toUpperCase()}
-                                    </div>
-                                    <div className='flex-1 min-w-0'>
-                                        <p className='text-sm font-bold text-slate-800 truncate'>{user?.username || user?.email}</p>
-                                        <p className='text-xs text-slate-500 truncate'>Member</p>
-                                    </div>
-                                    <div className='h-2 w-2 bg-emerald-500 rounded-full border-2 border-white shadow-[0_0_0_2px_#fff]'></div>
-                                </div>
-                            ))}
-                        </div>
-
-                        <button
-                            onClick={() => setIsModalOpen(true)}
-                            className='mt-6 w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2'>
-                            <i className="ri-user-add-line"></i>
-                            <span>Add Member</span>
-                        </button>
-                    </div>
-                </aside>
             </div>
 
             {/* Select User Modal */}
@@ -373,114 +459,45 @@ const Project = () => {
                 </div>
             )}
 
-            {/* Chat User Selection Modal */}
-            {isChatUserModalOpen && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg border border-slate-200 flex flex-col max-h-[85vh] sm:max-h-[90vh] animate-slideUp relative pb-20">
+            {/* Team Members Modal */}
+            {isMembersModalOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-100 flex flex-col max-h-[80vh] overflow-hidden animate-slideUp">
                         {/* Modal Header */}
-                        <div className="flex justify-between items-center p-6 border-b border-slate-200">
-                            <div>
-                                <h2 className="text-2xl font-bold text-slate-900">Select Chat User</h2>
-                                <p className="text-sm text-slate-500 mt-1">Choose a user to start chatting</p>
-                            </div>
-                            <button
-                                onClick={() => setIsChatUserModalOpen(false)}
-                                className="p-2 hover:bg-slate-100 rounded-full transition-all text-slate-400 hover:text-slate-900 active:scale-95">
-                                <i className="ri-close-line text-2xl"></i>
+                        <div className='p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50'>
+                            <h2 className='text-lg font-bold text-slate-900'>Team Members</h2>
+                            <button onClick={() => setIsMembersModalOpen(false)} className='text-slate-400 hover:text-slate-900 transition-all p-1 rounded-full hover:bg-slate-200'>
+                                <i className="ri-close-line text-xl"></i>
                             </button>
                         </div>
 
-                        {/* Search Bar */}
-                        <div className="px-6 pt-4">
-                            <div className="relative">
-                                <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                                <input
-                                    type="text"
-                                    placeholder="Search users..."
-                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-900"
-                                />
-                            </div>
-                        </div>
-
-                        {/* Users List */}
-                        <div className="flex-1 overflow-y-auto p-6 space-y-2">
-                            {users.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                                    <i className="ri-user-search-line text-5xl mb-3"></i>
-                                    <p className="text-lg font-medium">No users found</p>
-                                </div>
-                            ) : (
-                                users.map((user) => (
-                                    <div
-                                        key={user._id}
-                                        onClick={() => handleChatUserSelect(user._id)}
-                                        className={`flex items-center gap-4 p-4 rounded-xl transition-all cursor-pointer border-2 group
-                                            ${selectedChatUser === user._id
-                                                ? 'border-blue-500 bg-gradient-to-r from-blue-50 to-indigo-50 shadow-md'
-                                                : 'border-transparent hover:bg-slate-50 hover:shadow-sm'
-                                            }`}>
-                                        {/* User Avatar */}
-                                        <div className={`h-12 w-12 rounded-xl flex items-center justify-center text-white font-bold shadow-md transition-all
-                                            ${selectedChatUser === user._id
-                                                ? 'bg-gradient-to-br from-blue-600 to-indigo-600 scale-105'
-                                                : 'bg-gradient-to-br from-slate-500 to-slate-600 group-hover:scale-105'
-                                            }`}>
-                                            {user.email.substring(0, 1).toUpperCase()}
-                                        </div>
-
-                                        {/* User Info */}
-                                        <div className='flex-1 min-w-0'>
-                                            <p className='text-base font-bold text-slate-800 truncate'>
-                                                {user.username || user.email}
-                                            </p>
-                                            <p className='text-xs text-slate-500 truncate'>
-                                                {selectedChatUser === user._id ? 'Selected' : 'Click to select'}
-                                            </p>
-                                        </div>
-
-                                        {/* Check Icon */}
-                                        {selectedChatUser === user._id && (
-                                            <div className="bg-blue-600 rounded-full p-1 animate-scaleIn">
-                                                <i className="ri-check-line text-white text-lg"></i>
-                                            </div>
-                                        )}
-
-                                        {/* Hover Arrow */}
-                                        {selectedChatUser !== user._id && (
-                                            <i className="ri-arrow-right-s-line text-slate-400 text-xl opacity-0 group-hover:opacity-100 transition-opacity"></i>
-                                        )}
+                        {/* Members List */}
+                        <div className='flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar'>
+                            {project?.users?.map((user, index) => (
+                                <div key={index} className='flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-all'>
+                                    <div className='h-10 w-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-sm'>
+                                        {user?.email?.substring(0, 1).toUpperCase()}
                                     </div>
-                                ))
-                            )}
+                                    <div className='flex-1 min-w-0'>
+                                        <p className='text-sm font-bold text-slate-800 truncate'>{user?.username || user?.email}</p>
+                                        <p className='text-xs text-slate-500 text-slate-400'>Full Access</p>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
 
                         {/* Modal Footer */}
-                        <div className="p-6 border-t border-slate-200 bg-slate-50 rounded-b-3xl">
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setIsChatUserModalOpen(false)}
-                                    className="flex-1 py-3 px-4 bg-white border-2 border-slate-200 text-slate-700 rounded-xl font-bold hover:bg-slate-50 transition-all active:scale-95">
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={() => setIsChatUserModalOpen(false)}
-                                    disabled={!selectedChatUser}
-                                    className="flex-1 py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-bold hover:from-blue-700 hover:to-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-100 active:scale-95">
-                                    {selectedChatUser ? 'Start Chat' : 'Select User'}
-                                </button>
-                            </div>
+                        <div className='p-5 border-t border-slate-100 bg-slate-50'>
+                            <button
+                                onClick={() => {
+                                    setIsMembersModalOpen(false)
+                                    setIsModalOpen(true)
+                                }}
+                                className='w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-100 active:scale-95'>
+                                <i className="ri-user-add-line"></i>
+                                <span>Add New Member</span>
+                            </button>
                         </div>
-
-                        {/* Fixed Add Collaborators Button */}
-                        <button
-                            onClick={() => {
-                                setIsChatUserModalOpen(false)
-                                setIsModalOpen(true)
-                            }}
-                            className="absolute bottom-0 left-0 right-0 w-full py-4 px-6 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-b-3xl font-bold hover:from-emerald-700 hover:to-teal-700 transition-all shadow-lg active:scale-[0.99] flex items-center justify-center gap-2 border-t-2 border-emerald-500/20">
-                            <i className="ri-user-add-line text-xl"></i>
-                            <span>Add Collaborators</span>
-                        </button>
                     </div>
                 </div>
             )}
