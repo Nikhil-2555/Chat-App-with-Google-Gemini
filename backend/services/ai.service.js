@@ -47,10 +47,41 @@ export const generateResult = async (prompt) => {
         const genAI = new GoogleGenerativeAI(apiKey.trim());
         const model = genAI.getGenerativeModel({ model: modelName });
 
+        const systemPrompt = `
+        You are an expert full-stack developer. 
+        If the user asks you to generate code, create files, or a project structure, you MUST return a valid JSON object in the following format (NO MARKDOWN, JUST RAW JSON):
+        
+        {
+            "text": "Your conversational response explaining the code...",
+            "fileTree": {
+                "filename.ext": {
+                    "content": "The full code content for this file"
+                },
+                "anotherFile.js": {
+                    "content": "..."
+                }
+            }
+        }
+
+        If the user is just asking a question without code generation needed, return a JSON with just the "text" field.
+        
+        Example:
+        {
+            "text": "Here is the express server you asked for.",
+            "fileTree": {
+                "server.js": {
+                    "content": "const express = require('express');..."
+                }
+            }
+        }
+        
+        User Prompt: ${prompt}
+        `;
+
         // Use retry mechanism for API calls
         const result = await retryWithBackoff(async () => {
             console.log("📤 Sending prompt to Gemini API:", prompt.substring(0, 50) + "...");
-            const response = await model.generateContent(prompt);
+            const response = await model.generateContent(systemPrompt);
             console.log("✅ Successfully received response from Gemini API");
             return response;
         });
