@@ -6,6 +6,7 @@ import * as projectService from '../services/project.service'
 import * as userService from '../services/user.service'
 import { UserContext } from '../context/user.context'
 import { initializeSocket, receiveMessage, sendMessage } from '../config/socket'
+import { getWebContainer } from '../config/webContainer'
 
 const Project = () => {
     const { projectId } = useParams()
@@ -24,18 +25,9 @@ const Project = () => {
 
     const [currentFile, setCurrentFile] = useState(null)
     const [openFiles, setOpenFiles] = useState([])
+    const [webContainer, setWebContainer] = useState(null)
 
-    const [fileTree, setFileTree] = useState({
-        "app.js": {
-            content: `import React from 'react';\n\nfunction App() {\n  return (\n    <div>Hello World</div>\n  );\n}`
-        },
-        "package.json": {
-            content: `{\n  "name": "my-project",\n  "version": "1.0.0"\n}`
-        },
-        "style.css": {
-            content: `body {\n  background: #f0f0f0;\n}`
-        }
-    })
+    const [fileTree, setFileTree] = useState({})
 
     useEffect(() => {
         // Only fetch project if projectId is provided
@@ -72,6 +64,12 @@ const Project = () => {
             ]
             setUsers(mockUsers)
         })
+        if (!webContainer) {
+            getWebContainer().then((container) => {
+                setWebContainer(container)
+                console.log("container started")
+            })
+        }
     }, [projectId])
 
     useEffect(() => {
@@ -84,34 +82,24 @@ const Project = () => {
         const handleMessage = (data) => {
             console.log("📩 Received message:", data)
 
-            // Check if message contains fileTree (Janky AI File Generation Check)
             try {
-                // We attempt to find a JSON block if the message isn't pure JSON
-                // But for now, let's assume the AI returns a JSON string if we tell it to.
-                // Or we can check if data.message is an object (if connection layer parsed it, but usually it's string in socket.emit unless sent as obj)
-                // Actually socket.io handles objects. 
+                let cleanMessage = typeof data.message === 'string' ? data.message : '';
 
-                // If the message is a STRING that looks like JSON
-                const cleanMessage = typeof data.message === 'string' ? data.message : '';
+                // Remove Markdown code blocks if present
+                cleanMessage = cleanMessage.replace(/```json/g, '').replace(/```/g, '').trim();
 
-                if (cleanMessage.trim().startsWith('{') && cleanMessage.trim().endsWith('}')) {
+                if (cleanMessage.startsWith('{') && cleanMessage.endsWith('}')) {
                     const parsed = JSON.parse(cleanMessage);
                     if (parsed.fileTree) {
                         setFileTree(prev => ({ ...prev, ...parsed.fileTree }));
                         data.message = parsed.text || "Updated project files.";
-                        // Optionally open these files?
                     }
                 }
             } catch (e) {
-                // Not JSON, ignore
-                console.log("Message is not a system command")
+                console.log("Message is not a system command", e)
             }
 
-            setMessages(prev => {
-                // Prevent duplicate messages if any (simple check by timestamp or content if needed, 
-                // but for now just appending is standard. We can add a unique ID check if needed later)
-                return [...prev, data]
-            })
+            setMessages(prev => [...prev, data])
         }
 
         receiveMessage('project-message', handleMessage)
