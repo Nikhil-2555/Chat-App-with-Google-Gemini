@@ -15,6 +15,7 @@ const Project = () => {
     const [isSidePanelOpen, setIsSidePanelOpen] = useState(false)
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [isMembersModalOpen, setIsMembersModalOpen] = useState(false)
+    const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
     const [users, setUsers] = useState([])
     const [selectedUsers, setSelectedUsers] = useState(new Set())
     const [selectedChatUser, setSelectedChatUser] = useState(null)
@@ -28,6 +29,7 @@ const Project = () => {
     const [webContainer, setWebContainer] = useState(null)
 
     const [fileTree, setFileTree] = useState({})
+    const [iframeUrl, setIframeUrl] = useState(null)
 
     useEffect(() => {
         // Only fetch project if projectId is provided
@@ -67,7 +69,10 @@ const Project = () => {
         if (!webContainer) {
             getWebContainer().then((container) => {
                 setWebContainer(container)
-                console.log("container started")
+                container.on('server-ready', (port, url) => {
+                    console.log('server-ready', port, url)
+                    setIframeUrl(url)
+                })
             })
         }
     }, [projectId])
@@ -189,6 +194,115 @@ const Project = () => {
         setIsChatUserModalOpen(false)
     }
 
+    const runProject = async () => {
+        if (!webContainer) {
+            console.error("WebContainer not initialized");
+            alert("WebContainer is booting... please wait");
+            return;
+        }
+
+        if (!currentFile) {
+            alert("Please select a file to run");
+            return;
+        }
+
+        console.clear();
+        console.log(`--- PREPARING TO RUN ${currentFile} ---`);
+
+        // Mount files
+        const mountStructure = {};
+        for (const [fileName, fileData] of Object.entries(fileTree)) {
+            mountStructure[fileName] = {
+                file: {
+                    contents: fileData.content || ''
+                }
+            };
+        }
+
+        // Ensure package.json exists
+        if (!mountStructure['package.json']) {
+            console.log("No package.json found. Creating a default one...");
+            mountStructure['package.json'] = {
+                file: {
+                    contents: JSON.stringify({
+                        name: "app",
+                        dependencies: {
+                            "express": "latest",
+                            "socket.io": "latest",
+                            "cors": "latest"
+                        },
+                        scripts: {
+                            "start": "node server.js"
+                        }
+                    }, null, 2)
+                }
+            };
+        }
+
+        try {
+            await webContainer.mount(mountStructure);
+        } catch (e) {
+            console.error("Failed to mount files:", e);
+            return;
+        }
+
+        // Install dependencies
+        console.log("--- INSTALLING DEPENDENCIES (this may take a moment) ---");
+        const installProcess = await webContainer.spawn('npm', ['install']);
+
+        installProcess.output.pipeTo(new WritableStream({
+            write(data) {
+                console.log(data);
+            }
+        }));
+
+        const installExitCode = await installProcess.exit;
+        if (installExitCode !== 0) {
+            console.error("Installation failed");
+            return;
+        }
+
+        console.log("--- STARTING APPLICATION ---");
+
+        let runCommand = 'node';
+        let runArgs = [currentFile];
+
+        if (fileTree['package.json']) {
+            try {
+                const pkg = JSON.parse(fileTree['package.json'].content);
+                if (pkg.scripts && pkg.scripts.start) {
+                    runCommand = 'npm';
+                    runArgs = ['start'];
+                } else if (fileTree['server.js']) {
+                    runCommand = 'node';
+                    runArgs = ['server.js'];
+                }
+            } catch (e) {
+                console.error("Error parsing package.json", e);
+            }
+        } else if (fileTree['server.js']) {
+            runCommand = 'node';
+            runArgs = ['server.js'];
+        }
+
+        console.log(`Executing: ${runCommand} ${runArgs.join(' ')}`);
+
+        const process = await webContainer.spawn(runCommand, runArgs);
+
+        // Listen for process output
+        process.output.pipeTo(new WritableStream({
+            write(data) {
+                console.log(data);
+            }
+        }));
+
+        const exitCode = await process.exit;
+        if (exitCode !== 0) {
+            console.log(`Process exited with code ${exitCode}`);
+        }
+    };
+
+
     return (
         <main className='h-dvh w-screen flex flex-col bg-slate-50'>
             {/* Header */}
@@ -211,11 +325,19 @@ const Project = () => {
                 </div>
 
                 <div className='flex items-center gap-3'>
-                    <div className='bg-blue-600 text-white p-2.5 rounded-xl shadow-lg shadow-blue-100'>
-                        <i className="ri-folder-line text-xl"></i>
-                    </div>
-                    <button className='p-2.5 hover:bg-slate-100 rounded-xl transition-all text-slate-600 active:scale-95'>
-                        <i className="ri-settings-3-line text-xl"></i>
+                    {iframeUrl && (
+                        <button
+                            onClick={() => setIsPreviewModalOpen(true)}
+                            className='flex items-center gap-2 bg-slate-100 text-slate-700 px-4 py-2 rounded-xl font-bold hover:bg-slate-200 transition-all active:scale-95'>
+                            <i className="ri-links-line text-lg"></i>
+                            <span>Preview</span>
+                        </button>
+                    )}
+                    <button
+                        onClick={runProject}
+                        className='flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95'>
+                        <i className="ri-play-fill text-lg"></i>
+                        <span>Run</span>
                     </button>
                 </div>
             </header>
@@ -447,6 +569,33 @@ const Project = () => {
                 </div>
             )}
 
+            {/* Website Preview Modal */}
+            {isPreviewModalOpen && iframeUrl && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] border border-slate-100 flex flex-col overflow-hidden relative">
+                        <div className="flex justify-between items-center p-3 border-b border-slate-200 bg-slate-50">
+                            <div className='flex items-center gap-2'>
+                                <span className='h-3 w-3 rounded-full bg-red-400'></span>
+                                <span className='h-3 w-3 rounded-full bg-yellow-400'></span>
+                                <span className='h-3 w-3 rounded-full bg-green-400'></span>
+                                <span className="ml-2 text-sm text-slate-600 font-mono truncate max-w-md">{iframeUrl}</span>
+                            </div>
+                            <button onClick={() => setIsPreviewModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-500">
+                                <i className="ri-close-line text-xl"></i>
+                            </button>
+                        </div>
+                        <div className='flex-1 bg-slate-100 relative'>
+                            <iframe
+                                src={iframeUrl}
+                                className='w-full h-full border-none bg-white'
+                                title="Project Preview"
+                                allow="cross-origin-isolated"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Team Members Modal */}
             {isMembersModalOpen && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
@@ -494,4 +643,3 @@ const Project = () => {
 }
 
 export default Project
-//how are you
