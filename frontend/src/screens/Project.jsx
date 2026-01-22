@@ -30,6 +30,15 @@ const Project = () => {
 
     const [fileTree, setFileTree] = useState({})
     const [iframeUrl, setIframeUrl] = useState(null)
+    const [currentIframeUrl, setCurrentIframeUrl] = useState(null)
+    const [urlBarValue, setUrlBarValue] = useState('')
+
+    useEffect(() => {
+        if (iframeUrl) {
+            setCurrentIframeUrl(iframeUrl)
+            setUrlBarValue(iframeUrl)
+        }
+    }, [iframeUrl])
 
     useEffect(() => {
         // Only fetch project if projectId is provided
@@ -403,27 +412,32 @@ const Project = () => {
                     </div>
 
                     {/* Input Area */}
-                    <div className='px-4 pb-4'>
-                        <div className='flex gap-2 items-center'>
-                            <div className='flex-1 relative'>
-                                <input
+                    <div className='p-4 bg-white border-t border-slate-200'>
+                        <div className='flex gap-2 items-end'>
+                            <div className='flex-1 relative bg-slate-100 p-2 rounded-2xl border border-transparent focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all'>
+                                <textarea
                                     value={message}
                                     onChange={(e) => setMessage(e.target.value)}
-                                    type="text"
-                                    placeholder='Enter message'
-                                    className='w-full py-2.5 px-3 bg-white border-none rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-300 transition-all text-sm text-slate-800 placeholder:text-slate-400'
+                                    placeholder='Type a message...'
+                                    className='w-full bg-transparent border-none focus:outline-none text-sm text-slate-800 placeholder:text-slate-400 resize-none max-h-32 py-1 px-2'
+                                    rows={1}
                                     onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault()
                                             send()
                                         }
                                     }}
+                                    style={{ minHeight: '40px' }}
                                 />
+                                <div className='flex justify-end items-center mt-2 px-2'>
+                                    <button
+                                        onClick={send}
+                                        className='bg-blue-600 text-white p-2 rounded-xl hover:bg-blue-700 transition-all active:scale-95 shadow-md shadow-blue-100 disabled:opacity-50 disabled:cursor-not-allowed'
+                                        disabled={!message.trim()}>
+                                        <i className="ri-send-plane-fill text-lg"></i>
+                                    </button>
+                                </div>
                             </div>
-                            <button
-                                onClick={send}
-                                className='bg-slate-700 text-white p-2.5 rounded-lg hover:bg-slate-800 transition-all active:scale-95'>
-                                <i className="ri-send-plane-fill text-lg"></i>
-                            </button>
                         </div>
                     </div>
                 </section>
@@ -572,24 +586,42 @@ const Project = () => {
             {/* Website Preview Modal */}
             {isPreviewModalOpen && iframeUrl && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] border border-slate-100 flex flex-col overflow-hidden relative">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[85vh] border border-slate-100 flex flex-col overflow-hidden relative animate-fadeIn">
                         <div className="flex justify-between items-center p-3 border-b border-slate-200 bg-slate-50">
-                            <div className='flex items-center gap-2'>
-                                <span className='h-3 w-3 rounded-full bg-red-400'></span>
-                                <span className='h-3 w-3 rounded-full bg-yellow-400'></span>
-                                <span className='h-3 w-3 rounded-full bg-green-400'></span>
-                                <span className="ml-2 text-sm text-slate-600 font-mono truncate max-w-md">{iframeUrl}</span>
+                            <div className='flex items-center gap-3 bg-slate-200/50 px-3 py-1.5 rounded-lg w-full max-w-md'>
+                                <i className="ri-lock-line text-slate-500 text-sm"></i>
+                                <input
+                                    type="text"
+                                    value={urlBarValue}
+                                    onChange={(e) => setUrlBarValue(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            setCurrentIframeUrl(urlBarValue)
+                                        }
+                                    }}
+                                    className='bg-transparent border-none focus:outline-none w-full text-sm text-slate-600 font-mono flex-1'
+                                />
+                                <a
+                                    href={currentIframeUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-slate-500 hover:text-blue-600 transition-colors"
+                                    title="Open in New Tab">
+                                    <i className="ri-external-link-line"></i>
+                                </a>
                             </div>
-                            <button onClick={() => setIsPreviewModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-500">
-                                <i className="ri-close-line text-xl"></i>
-                            </button>
+                            <div className='flex items-center gap-3'>
+                                <button onClick={() => setIsPreviewModalOpen(false)} className="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-500">
+                                    <i className="ri-close-line text-xl"></i>
+                                </button>
+                            </div>
                         </div>
-                        <div className='flex-1 bg-slate-100 relative'>
+                        <div className='flex-1 bg-white relative'>
                             <iframe
-                                src={iframeUrl}
-                                className='w-full h-full border-none bg-white'
+                                src={currentIframeUrl}
+                                className='w-full h-full border-none'
                                 title="Project Preview"
-                                allow="cross-origin-isolated"
+                                allow="clipboard-read; clipboard-write; cross-origin-isolated"
                             />
                         </div>
                     </div>
